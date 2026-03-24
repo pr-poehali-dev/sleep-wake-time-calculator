@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
-import { SleepCycle, Settings, minutesToTime, timeToMinutes, buildCycles, rebuildFromIndex } from "@/components/sleep-utils";
+import { SleepCycle, Settings, minutesToTime, timeToMinutes, buildCycles, rebuildFromIndex, rebuildWithPinned } from "@/components/sleep-utils";
 import DayTimeline from "@/components/DayTimeline";
 import DurationSliders from "@/components/DurationSliders";
 import CyclesList from "@/components/CyclesList";
@@ -23,10 +23,16 @@ export default function SleepCalculator({ settings, onSave }: SleepCalculatorPro
     setLocalSettings(settings);
   }, [settings]);
 
+  // When day boundaries change — full rebuild (pinned times may fall outside)
   useEffect(() => {
     setCycles(buildCycles(localSettings));
     setEditingIndex(null);
-  }, [localSettings]);
+  }, [localSettings.dayStart, localSettings.dayEnd]);
+
+  // When durations change — preserve pinned cycles, recalculate gaps
+  useEffect(() => {
+    setCycles((prev) => rebuildWithPinned(prev, localSettings));
+  }, [localSettings.sleepDuration, localSettings.wakeDuration]);
 
   const sleepCount = cycles.filter((c) => c.type === "sleep").length;
   const totalSleep = cycles.filter((c) => c.type === "sleep").reduce((a, c) => a + (c.end - c.start), 0);
