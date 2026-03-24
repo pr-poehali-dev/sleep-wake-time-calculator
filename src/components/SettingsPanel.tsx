@@ -15,13 +15,13 @@ interface SettingsPanelProps {
 }
 
 const agePresets = [
-  { label: "0–2 мес", sleepDuration: 60, wakeDuration: 60, dayStart: 420, dayEnd: 1320 },
-  { label: "2–4 мес", sleepDuration: 90, wakeDuration: 90, dayStart: 420, dayEnd: 1320 },
-  { label: "4–6 мес", sleepDuration: 90, wakeDuration: 120, dayStart: 420, dayEnd: 1320 },
-  { label: "6–9 мес", sleepDuration: 120, wakeDuration: 180, dayStart: 420, dayEnd: 1320 },
-  { label: "9–12 мес", sleepDuration: 120, wakeDuration: 240, dayStart: 420, dayEnd: 1320 },
-  { label: "1–1.5 г", sleepDuration: 120, wakeDuration: 300, dayStart: 420, dayEnd: 1320 },
-  { label: "1.5–2 г", sleepDuration: 90, wakeDuration: 360, dayStart: 420, dayEnd: 1320 },
+  { label: "0–1 мес", sleepDuration: 80, wakeDuration: 50, dayStart: 420, dayEnd: 1320 },
+  { label: "2–3 мес", sleepDuration: 60, wakeDuration: 75, dayStart: 420, dayEnd: 1320 },
+  { label: "4–6 мес", sleepDuration: 70, wakeDuration: 120, dayStart: 420, dayEnd: 1320 },
+  { label: "7–9 мес", sleepDuration: 60, wakeDuration: 180, dayStart: 420, dayEnd: 1320 },
+  { label: "10–12 мес", sleepDuration: 60, wakeDuration: 195, dayStart: 420, dayEnd: 1320 },
+  { label: "13–15 мес", sleepDuration: 60, wakeDuration: 270, dayStart: 420, dayEnd: 1320 },
+  { label: "16 мес – 3 г", sleepDuration: 90, wakeDuration: 330, dayStart: 420, dayEnd: 1320 },
 ];
 
 export default function SettingsPanel({ settings, onChange }: SettingsPanelProps) {
