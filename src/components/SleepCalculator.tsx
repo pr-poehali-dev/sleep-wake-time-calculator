@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 
 interface SleepCycle {
@@ -6,6 +6,7 @@ interface SleepCycle {
   start: number;
   end: number;
   label: string;
+  pinned?: boolean;
 }
 
 interface Settings {
@@ -26,19 +27,21 @@ function minutesToTime(minutes: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
 function buildCycles(settings: Settings): SleepCycle[] {
   const { sleepDuration, wakeDuration, dayStart, dayEnd } = settings;
-  const totalMinutes = dayEnd - dayStart;
   const cycles: SleepCycle[] = [];
-
   let cursor = dayStart;
   let wakeIndex = 1;
   let sleepIndex = 1;
 
-  // First wake period (before first nap)
   const firstWakeEnd = cursor + wakeDuration;
   if (firstWakeEnd >= dayEnd) {
-    cycles.push({ type: "wake", start: cursor, end: dayEnd, label: `Бодрствование` });
+    cycles.push({ type: "wake", start: cursor, end: dayEnd, label: "Бодрствование" });
     return cycles;
   }
   cycles.push({ type: "wake", start: cursor, end: firstWakeEnd, label: `Бодрствование ${wakeIndex++}` });
@@ -54,7 +57,6 @@ function buildCycles(settings: Settings): SleepCycle[] {
       cycles.push({ type: "wake", start: cursor, end: wakeEnd, label: `Бодрствование ${wakeIndex++}` });
       cursor = wakeEnd;
     } else {
-      // Last wake
       if (cursor < dayEnd) {
         cycles.push({ type: "wake", start: cursor, end: dayEnd, label: `Бодрствование ${wakeIndex++}` });
       }
@@ -65,10 +67,49 @@ function buildCycles(settings: Settings): SleepCycle[] {
   return cycles;
 }
 
+// Rebuild cycles from index onwards, keeping pinned ones as anchors
+function rebuildFromIndex(cycles: SleepCycle[], fromIndex: number, settings: Settings): SleepCycle[] {
+  const result = cycles.slice(0, fromIndex + 1);
+  let cursor = result[result.length - 1].end;
+  const { sleepDuration, wakeDuration, dayEnd } = settings;
+
+  // Determine next type
+  const lastType = result[result.length - 1].type;
+  let nextType: "sleep" | "wake" = lastType === "sleep" ? "wake" : "sleep";
+
+  let wakeIndex = result.filter((c) => c.type === "wake").length + 1;
+  let sleepIndex = result.filter((c) => c.type === "sleep").length + 1;
+
+  while (cursor < dayEnd) {
+    const duration = nextType === "sleep" ? sleepDuration : wakeDuration;
+    if (cursor + duration > dayEnd) {
+      // Fill remainder as final wake if needed
+      if (nextType === "wake" && cursor < dayEnd) {
+        result.push({ type: "wake", start: cursor, end: dayEnd, label: `Бодрствование ${wakeIndex++}` });
+      }
+      break;
+    }
+    const end = cursor + duration;
+    if (nextType === "sleep") {
+      result.push({ type: "sleep", start: cursor, end, label: `Сон ${sleepIndex++}` });
+    } else {
+      result.push({ type: "wake", start: cursor, end, label: `Бодрствование ${wakeIndex++}` });
+    }
+    cursor = end;
+    nextType = nextType === "sleep" ? "wake" : "sleep";
+  }
+
+  return result;
+}
+
 export default function SleepCalculator({ settings, onSave }: SleepCalculatorProps) {
   const [localSettings, setLocalSettings] = useState<Settings>(settings);
   const [cycles, setCycles] = useState<SleepCycle[]>([]);
   const [saved, setSaved] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editStart, setEditStart] = useState("");
+  const [editEnd, setEditEnd] = useState("");
+  const [editError, setEditError] = useState("");
 
   useEffect(() => {
     setLocalSettings(settings);
@@ -76,6 +117,7 @@ export default function SleepCalculator({ settings, onSave }: SleepCalculatorPro
 
   useEffect(() => {
     setCycles(buildCycles(localSettings));
+    setEditingIndex(null);
   }, [localSettings]);
 
   const totalMinutes = localSettings.dayEnd - localSettings.dayStart;
@@ -89,6 +131,66 @@ export default function SleepCalculator({ settings, onSave }: SleepCalculatorPro
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const openEdit = (index: number) => {
+    setEditingIndex(index);
+    setEditStart(minutesToTime(cycles[index].start));
+    setEditEnd(minutesToTime(cycles[index].end));
+    setEditError("");
+  };
+
+  const closeEdit = () => {
+    setEditingIndex(null);
+    setEditError("");
+  };
+
+  const applyEdit = () => {
+    if (editingIndex === null) return;
+
+    const newStart = timeToMinutes(editStart);
+    const newEnd = timeToMinutes(editEnd);
+
+    // Validation
+    if (isNaN(newStart) || isNaN(newEnd)) {
+      setEditError("Введите корректное время");
+      return;
+    }
+    if (newEnd <= newStart) {
+      setEditError("Конец должен быть позже начала");
+      return;
+    }
+    if (editingIndex > 0 && newStart < cycles[editingIndex - 1].end) {
+      setEditError(`Начало не может быть раньше ${minutesToTime(cycles[editingIndex - 1].end)}`);
+      return;
+    }
+    if (newEnd > localSettings.dayEnd) {
+      setEditError(`Конец не может быть позже ${minutesToTime(localSettings.dayEnd)}`);
+      return;
+    }
+
+    // Apply edit to cycle
+    const updated = cycles.map((c, i) =>
+      i === editingIndex ? { ...c, start: newStart, end: newEnd, pinned: true } : c
+    );
+
+    // If not last — fix next cycle start to match end
+    if (editingIndex < updated.length - 1) {
+      updated[editingIndex + 1] = { ...updated[editingIndex + 1], start: newEnd };
+    }
+
+    // Rebuild everything after this index
+    const rebuilt = rebuildFromIndex(updated, editingIndex, localSettings);
+    setCycles(rebuilt);
+    setEditingIndex(null);
+    setEditError("");
+  };
+
+  const resetCycles = () => {
+    setCycles(buildCycles(localSettings));
+    setEditingIndex(null);
+  };
+
+  const hasManualEdits = cycles.some((c) => c.pinned);
+
   const renderTimeline = () => {
     if (totalMinutes <= 0) return null;
     return cycles.map((cycle, i) => {
@@ -100,7 +202,7 @@ export default function SleepCalculator({ settings, onSave }: SleepCalculatorPro
           className="absolute top-0 h-full rounded-full transition-all duration-300"
           style={{
             left: `${left}%`,
-            width: `${width}%`,
+            width: `${Math.max(width, 0.5)}%`,
             background:
               cycle.type === "sleep"
                 ? "linear-gradient(135deg, hsl(260 40% 72%), hsl(220 40% 78%))"
@@ -274,42 +376,147 @@ export default function SleepCalculator({ settings, onSave }: SleepCalculatorPro
         </div>
       </div>
 
-      {/* Cycles list */}
+      {/* Cycles list with edit */}
       {cycles.length > 0 && (
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-border animate-slide-up">
-          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-4">
-            Расписание на день
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+              Расписание на день
+            </h3>
+            {hasManualEdits && (
+              <button
+                onClick={resetCycles}
+                className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full transition-all hover:opacity-80"
+                style={{ background: "hsl(35 30% 93%)", color: "hsl(35 30% 40%)" }}
+              >
+                <Icon name="RotateCcw" size={12} />
+                Сбросить
+              </button>
+            )}
+          </div>
+
           <div className="space-y-2">
             {cycles.map((cycle, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between py-2.5 px-3 rounded-2xl transition-all"
-                style={{
-                  background:
-                    cycle.type === "sleep"
-                      ? "hsl(260 40% 96%)"
-                      : "hsl(45 90% 95%)",
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">{cycle.type === "sleep" ? "💤" : "☀️"}</span>
-                  <span className="text-sm font-medium">{cycle.label}</span>
+              <div key={i}>
+                {/* Cycle row */}
+                <div
+                  className={`flex items-center justify-between py-2.5 px-3 rounded-2xl transition-all cursor-pointer group ${
+                    editingIndex === i ? "ring-2" : "hover:brightness-95"
+                  }`}
+                  style={{
+                    background:
+                      cycle.type === "sleep" ? "hsl(260 40% 96%)" : "hsl(45 90% 95%)",
+                    ringColor:
+                      cycle.type === "sleep" ? "hsl(260 40% 65%)" : "hsl(45 90% 60%)",
+                    outline: editingIndex === i
+                      ? `2px solid ${cycle.type === "sleep" ? "hsl(260 40% 65%)" : "hsl(45 80% 55%)"}`
+                      : "none",
+                  }}
+                  onClick={() => editingIndex === i ? closeEdit() : openEdit(i)}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">{cycle.type === "sleep" ? "💤" : "☀️"}</span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium">{cycle.label}</span>
+                        {cycle.pinned && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                            style={{ background: "hsl(260 40% 88%)", color: "hsl(260 40% 40%)" }}>
+                            изменён
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {minutesToTime(cycle.start)} – {minutesToTime(cycle.end)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                      style={{
+                        background: cycle.type === "sleep" ? "hsl(260 40% 88%)" : "hsl(45 90% 85%)",
+                        color: cycle.type === "sleep" ? "hsl(260 40% 40%)" : "hsl(35 80% 35%)",
+                      }}
+                    >
+                      {cycle.end - cycle.start} мин
+                    </span>
+                    <Icon
+                      name={editingIndex === i ? "ChevronUp" : "Pencil"}
+                      size={14}
+                      color="hsl(230 15% 65%)"
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    {minutesToTime(cycle.start)} – {minutesToTime(cycle.end)}
-                  </span>
-                  <span
-                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                    style={{
-                      background: cycle.type === "sleep" ? "hsl(260 40% 88%)" : "hsl(45 90% 85%)",
-                      color: cycle.type === "sleep" ? "hsl(260 40% 40%)" : "hsl(35 80% 35%)",
-                    }}
+
+                {/* Inline edit form */}
+                {editingIndex === i && (
+                  <div
+                    className="mx-1 mt-1 mb-2 p-4 rounded-2xl space-y-3 animate-slide-up"
+                    style={{ background: "hsl(35 30% 97%)", border: "1px solid hsl(35 25% 88%)" }}
                   >
-                    {cycle.end - cycle.start} мин
-                  </span>
-                </div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Реальное время
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Начало</label>
+                        <input
+                          type="time"
+                          value={editStart}
+                          onChange={(e) => { setEditStart(e.target.value); setEditError(""); }}
+                          className="w-full px-3 py-2 rounded-xl border text-sm font-medium focus:outline-none focus:ring-2 transition-all"
+                          style={{
+                            borderColor: "hsl(35 25% 88%)",
+                            background: "white",
+                            color: "hsl(230 20% 20%)",
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Конец</label>
+                        <input
+                          type="time"
+                          value={editEnd}
+                          onChange={(e) => { setEditEnd(e.target.value); setEditError(""); }}
+                          className="w-full px-3 py-2 rounded-xl border text-sm font-medium focus:outline-none focus:ring-2 transition-all"
+                          style={{
+                            borderColor: "hsl(35 25% 88%)",
+                            background: "white",
+                            color: "hsl(230 20% 20%)",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {editError && (
+                      <p className="text-xs font-medium" style={{ color: "hsl(0 60% 55%)" }}>
+                        ⚠️ {editError}
+                      </p>
+                    )}
+
+                    <p className="text-xs text-muted-foreground">
+                      Все последующие циклы пересчитаются автоматически
+                    </p>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={applyEdit}
+                        className="flex-1 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
+                        style={{ background: "linear-gradient(135deg, hsl(260 40% 65%), hsl(220 40% 68%))" }}
+                      >
+                        Применить
+                      </button>
+                      <button
+                        onClick={closeEdit}
+                        className="px-4 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80"
+                        style={{ background: "hsl(35 25% 90%)", color: "hsl(230 15% 40%)" }}
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
