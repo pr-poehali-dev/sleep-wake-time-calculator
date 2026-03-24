@@ -121,7 +121,6 @@ export default function SleepCalculator({ settings, onSave }: SleepCalculatorPro
       <DayTimeline
         cycles={cycles}
         localSettings={localSettings}
-        onSettingsChange={setLocalSettings}
       />
 
       <DurationSliders

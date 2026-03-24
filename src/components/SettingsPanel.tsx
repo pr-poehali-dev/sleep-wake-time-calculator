@@ -1,3 +1,5 @@
+import { minutesToTime } from "@/components/sleep-utils";
+
 interface Settings {
   sleepDuration: number;
   wakeDuration: number;
@@ -110,6 +112,65 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
               </div>
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Day boundaries */}
+      <div className="bg-white rounded-3xl p-5 shadow-sm border border-border space-y-5">
+        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+          Границы дня
+        </h3>
+
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🌅</span>
+              <span className="text-sm font-medium">Начало дня</span>
+            </div>
+            <span className="font-bold text-sm" style={{ color: "hsl(260 40% 55%)" }}>
+              {minutesToTime(settings.dayStart)}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={300}
+            max={720}
+            step={15}
+            value={settings.dayStart}
+            onChange={(e) =>
+              onChange({
+                ...settings,
+                dayStart: Math.min(Number(e.target.value), settings.dayEnd - 60),
+              })
+            }
+            className="w-full"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🌙</span>
+              <span className="text-sm font-medium">Конец дня</span>
+            </div>
+            <span className="font-bold text-sm" style={{ color: "hsl(260 40% 55%)" }}>
+              {minutesToTime(settings.dayEnd)}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={720}
+            max={1380}
+            step={15}
+            value={settings.dayEnd}
+            onChange={(e) =>
+              onChange({
+                ...settings,
+                dayEnd: Math.max(Number(e.target.value), settings.dayStart + 60),
+              })
+            }
+            className="w-full"
+          />
         </div>
       </div>
 
