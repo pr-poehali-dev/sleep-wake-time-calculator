@@ -120,13 +120,23 @@ export default function Index() {
                   {(() => {
                     const birth = new Date(settings.babyBirthDate);
                     const now = new Date();
-                    const months =
+                    const totalMonths =
                       (now.getFullYear() - birth.getFullYear()) * 12 +
                       (now.getMonth() - birth.getMonth());
-                    if (months < 1) return "Меньше месяца";
-                    if (months < 12) return `${months} мес.`;
-                    const y = Math.floor(months / 12);
-                    const m = months % 12;
+                    if (totalMonths < 12) {
+                      // Дата начала текущего неполного месяца
+                      const monthStart = new Date(birth);
+                      monthStart.setMonth(monthStart.getMonth() + totalMonths);
+                      const days = Math.floor(
+                        (now.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24)
+                      );
+                      if (totalMonths === 0) {
+                        return days === 0 ? "Сегодня родился!" : `${days} д.`;
+                      }
+                      return days > 0 ? `${totalMonths} мес. ${days} д.` : `${totalMonths} мес.`;
+                    }
+                    const y = Math.floor(totalMonths / 12);
+                    const m = totalMonths % 12;
                     return m > 0 ? `${y} г. ${m} мес.` : `${y} г.`;
                   })()}
                 </p>
