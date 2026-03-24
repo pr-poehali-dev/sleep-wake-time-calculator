@@ -17,7 +17,7 @@ interface Settings {
   dayStart: number;
   dayEnd: number;
   babyName: string;
-  babyAge: string;
+  babyBirthDate: string;
 }
 
 interface HistoryEntry {
@@ -37,7 +37,7 @@ const DEFAULT_SETTINGS: Settings = {
   dayStart: 420,
   dayEnd: 1320,
   babyName: "",
-  babyAge: "",
+  babyBirthDate: "",
 };
 
 type Tab = "calc" | "settings" | "history";
@@ -115,8 +115,21 @@ export default function Index() {
               <h1 className="text-3xl font-bold text-foreground tracking-tight">
                 {settings.babyName ? `Привет, ${settings.babyName}! 👋` : "Сонный трекер 🌙"}
               </h1>
-              {settings.babyAge && (
-                <p className="text-sm text-muted-foreground mt-0.5">{settings.babyAge}</p>
+              {settings.babyBirthDate && (
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {(() => {
+                    const birth = new Date(settings.babyBirthDate);
+                    const now = new Date();
+                    const months =
+                      (now.getFullYear() - birth.getFullYear()) * 12 +
+                      (now.getMonth() - birth.getMonth());
+                    if (months < 1) return "Меньше месяца";
+                    if (months < 12) return `${months} мес.`;
+                    const y = Math.floor(months / 12);
+                    const m = months % 12;
+                    return m > 0 ? `${y} г. ${m} мес.` : `${y} г.`;
+                  })()}
+                </p>
               )}
             </div>
             <div

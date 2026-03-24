@@ -6,7 +6,7 @@ interface Settings {
   dayStart: number;
   dayEnd: number;
   babyName: string;
-  babyAge: string;
+  babyBirthDate: string;
 }
 
 interface SettingsPanelProps {
@@ -24,7 +24,35 @@ const agePresets = [
   { label: "16 мес – 3 г", sleepDuration: 90, wakeDuration: 330, dayStart: 420, dayEnd: 1320 },
 ];
 
+// Диапазоны возраста (в месяцах) для каждого пресета [minMonths, maxMonths]
+const ageRanges: [number, number][] = [
+  [0, 1],
+  [2, 3],
+  [4, 6],
+  [7, 9],
+  [10, 12],
+  [13, 15],
+  [16, 999],
+];
+
+function getAgeMonths(birthDate: string): number | null {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  const now = new Date();
+  return (
+    (now.getFullYear() - birth.getFullYear()) * 12 +
+    (now.getMonth() - birth.getMonth())
+  );
+}
+
+function getPresetIndexByAge(months: number): number {
+  return ageRanges.findIndex(([min, max]) => months >= min && months <= max);
+}
+
 export default function SettingsPanel({ settings, onChange }: SettingsPanelProps) {
+  const ageMonths = getAgeMonths(settings.babyBirthDate);
+  const suggestedPresetIndex = ageMonths !== null ? getPresetIndexByAge(ageMonths) : -1;
+
   const applyPreset = (preset: (typeof agePresets)[0]) => {
     onChange({
       ...settings,
@@ -33,6 +61,24 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
       dayStart: preset.dayStart,
       dayEnd: preset.dayEnd,
     });
+  };
+
+  const handleBirthDateChange = (value: string) => {
+    const months = getAgeMonths(value);
+    const idx = months !== null ? getPresetIndexByAge(months) : -1;
+    if (idx >= 0) {
+      const preset = agePresets[idx];
+      onChange({
+        ...settings,
+        babyBirthDate: value,
+        sleepDuration: preset.sleepDuration,
+        wakeDuration: preset.wakeDuration,
+        dayStart: preset.dayStart,
+        dayEnd: preset.dayEnd,
+      });
+    } else {
+      onChange({ ...settings, babyBirthDate: value });
+    }
   };
 
   return (
@@ -60,14 +106,28 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm font-medium text-foreground">Возраст</label>
+          <label className="text-sm font-medium text-foreground">Дата рождения</label>
           <input
-            type="text"
-            placeholder="Например, 4 месяца"
-            value={settings.babyAge}
-            onChange={(e) => onChange({ ...settings, babyAge: e.target.value })}
+            type="date"
+            value={settings.babyBirthDate}
+            max={new Date().toISOString().split("T")[0]}
+            onChange={(e) => handleBirthDateChange(e.target.value)}
             className="w-full px-4 py-3 rounded-2xl border border-border bg-muted/40 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
           />
+          {ageMonths !== null && (
+            <p className="text-xs text-muted-foreground pt-1">
+              {ageMonths < 1
+                ? "Меньше месяца"
+                : ageMonths < 12
+                ? `${ageMonths} мес.`
+                : `${Math.floor(ageMonths / 12)} г. ${ageMonths % 12 > 0 ? `${ageMonths % 12} мес.` : ""}`}
+              {suggestedPresetIndex >= 0 && (
+                <span className="ml-1" style={{ color: "hsl(260 40% 55%)" }}>
+                  · пресет «{agePresets[suggestedPresetIndex].label}» применён
+                </span>
+              )}
+            </p>
+          )}
         </div>
       </div>
 
@@ -83,26 +143,27 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          {agePresets.map((preset) => (
+          {agePresets.map((preset, idx) => {
+            const isActive =
+              settings.sleepDuration === preset.sleepDuration &&
+              settings.wakeDuration === preset.wakeDuration;
+            const isSuggested = idx === suggestedPresetIndex;
+            return (
             <button
               key={preset.label}
               onClick={() => applyPreset(preset)}
               className="py-3 px-4 rounded-2xl text-sm font-medium border transition-all duration-200 hover:shadow-md active:scale-95 text-left"
               style={{
-                background:
-                  settings.sleepDuration === preset.sleepDuration &&
-                  settings.wakeDuration === preset.wakeDuration
+                background: isActive
                     ? "linear-gradient(135deg, hsl(260 40% 65%), hsl(220 40% 68%))"
+                    : isSuggested
+                    ? "hsl(260 40% 93%)"
                     : "hsl(260 40% 97%)",
-                color:
-                  settings.sleepDuration === preset.sleepDuration &&
-                  settings.wakeDuration === preset.wakeDuration
-                    ? "white"
-                    : "hsl(260 30% 40%)",
-                borderColor:
-                  settings.sleepDuration === preset.sleepDuration &&
-                  settings.wakeDuration === preset.wakeDuration
+                color: isActive ? "white" : "hsl(260 30% 40%)",
+                borderColor: isActive
                     ? "transparent"
+                    : isSuggested
+                    ? "hsl(260 40% 70%)"
                     : "hsl(260 30% 88%)",
               }}
             >
@@ -111,7 +172,8 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
                 сон {preset.sleepDuration}м · бодр. {preset.wakeDuration}м
               </div>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 
