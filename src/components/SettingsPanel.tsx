@@ -49,9 +49,31 @@ function getPresetIndexByAge(months: number): number {
   return ageRanges.findIndex(([min, max]) => months >= min && months <= max);
 }
 
+function formatAge(birthDate: string): string | null {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  const now = new Date();
+  const totalMonths =
+    (now.getFullYear() - birth.getFullYear()) * 12 +
+    (now.getMonth() - birth.getMonth());
+  if (totalMonths < 12) {
+    const monthStart = new Date(birth);
+    monthStart.setMonth(monthStart.getMonth() + totalMonths);
+    const days = Math.floor(
+      (now.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (totalMonths === 0) return days === 0 ? "Сегодня родился!" : `${days} д.`;
+    return days > 0 ? `${totalMonths} мес. ${days} д.` : `${totalMonths} мес.`;
+  }
+  const y = Math.floor(totalMonths / 12);
+  const m = totalMonths % 12;
+  return m > 0 ? `${y} г. ${m} мес.` : `${y} г.`;
+}
+
 export default function SettingsPanel({ settings, onChange }: SettingsPanelProps) {
   const ageMonths = getAgeMonths(settings.babyBirthDate);
   const suggestedPresetIndex = ageMonths !== null ? getPresetIndexByAge(ageMonths) : -1;
+  const ageLabel = formatAge(settings.babyBirthDate);
 
   const applyPreset = (preset: (typeof agePresets)[0]) => {
     onChange({
@@ -114,13 +136,9 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
             onChange={(e) => handleBirthDateChange(e.target.value)}
             className="w-full px-4 py-3 rounded-2xl border border-border bg-muted/40 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
           />
-          {ageMonths !== null && (
+          {ageLabel !== null && (
             <p className="text-xs text-muted-foreground pt-1">
-              {ageMonths < 1
-                ? "Меньше месяца"
-                : ageMonths < 12
-                ? `${ageMonths} мес.`
-                : `${Math.floor(ageMonths / 12)} г. ${ageMonths % 12 > 0 ? `${ageMonths % 12} мес.` : ""}`}
+              {ageLabel}
               {suggestedPresetIndex >= 0 && (
                 <span className="ml-1" style={{ color: "hsl(260 40% 55%)" }}>
                   · пресет «{agePresets[suggestedPresetIndex].label}» применён
