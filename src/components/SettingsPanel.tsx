@@ -85,8 +85,14 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
     });
   };
 
+  const isTooOld = ageMonths !== null && ageMonths > 36;
+
   const handleBirthDateChange = (value: string) => {
     const months = getAgeMonths(value);
+    if (months !== null && months > 36) {
+      onChange({ ...settings, babyBirthDate: "" });
+      return;
+    }
     const idx = months !== null ? getPresetIndexByAge(months) : -1;
     if (idx >= 0) {
       const preset = agePresets[idx];
@@ -136,7 +142,12 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
             onChange={(e) => handleBirthDateChange(e.target.value)}
             className="w-full px-4 py-3 rounded-2xl border border-border bg-muted/40 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
           />
-          {ageLabel !== null && (
+          {isTooOld && (
+            <p className="text-xs pt-1" style={{ color: "hsl(340 50% 45%)" }}>
+              Поздравляем с трёхлетием! Вы уже слишком большой для нашего приложения 🎉
+            </p>
+          )}
+          {!isTooOld && ageLabel !== null && (
             <p className="text-xs text-muted-foreground pt-1">
               {ageLabel}
               {suggestedPresetIndex >= 0 && (
