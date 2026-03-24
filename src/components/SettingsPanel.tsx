@@ -1,3 +1,4 @@
+import { useState, useRef } from "react";
 import { minutesToTime } from "@/components/sleep-utils";
 
 interface Settings {
@@ -85,12 +86,20 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
     });
   };
 
-  const isTooOld = ageMonths !== null && ageMonths > 36;
+  const [tooOldWarning, setTooOldWarning] = useState(false);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isTooOld = tooOldWarning;
 
   const handleBirthDateChange = (value: string) => {
     const months = getAgeMonths(value);
     if (months !== null && months > 36) {
-      onChange({ ...settings, babyBirthDate: "" });
+      setTooOldWarning(true);
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+      resetTimer.current = setTimeout(() => {
+        setTooOldWarning(false);
+        onChange({ ...settings, babyBirthDate: "" });
+      }, 5000);
       return;
     }
     const idx = months !== null ? getPresetIndexByAge(months) : -1;
