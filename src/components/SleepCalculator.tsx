@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Icon from "@/components/ui/icon";
 import { SleepCycle, Settings, minutesToTime, timeToMinutes, buildCycles, rebuildFromIndex, rebuildWithPinned } from "@/components/sleep-utils";
 import DayTimeline from "@/components/DayTimeline";
@@ -8,9 +8,11 @@ import CyclesList from "@/components/CyclesList";
 interface SleepCalculatorProps {
   settings: Settings;
   onSave: (cycles: SleepCycle[], settings: Settings) => void;
+  initialCycles?: SleepCycle[] | null;
+  onInitialCyclesConsumed?: () => void;
 }
 
-export default function SleepCalculator({ settings, onSave }: SleepCalculatorProps) {
+export default function SleepCalculator({ settings, onSave, initialCycles, onInitialCyclesConsumed }: SleepCalculatorProps) {
   const [localSettings, setLocalSettings] = useState<Settings>(settings);
   const [cycles, setCycles] = useState<SleepCycle[]>([]);
   const [saved, setSaved] = useState(false);
@@ -18,13 +20,28 @@ export default function SleepCalculator({ settings, onSave }: SleepCalculatorPro
   const [editStart, setEditStart] = useState("");
   const [editEnd, setEditEnd] = useState("");
   const [editError, setEditError] = useState("");
+  const skipRebuildRef = useRef(false);
 
   useEffect(() => {
     setLocalSettings(settings);
   }, [settings]);
 
+  // Load cycles from history if provided — skip subsequent rebuild effects
+  useEffect(() => {
+    if (initialCycles && initialCycles.length > 0) {
+      skipRebuildRef.current = true;
+      setCycles(initialCycles);
+      setEditingIndex(null);
+      onInitialCyclesConsumed?.();
+    }
+  }, [initialCycles]);
+
   // When day boundaries change — full rebuild (pinned times may fall outside)
   useEffect(() => {
+    if (skipRebuildRef.current) {
+      skipRebuildRef.current = false;
+      return;
+    }
     setCycles(buildCycles(localSettings));
     setEditingIndex(null);
   }, [localSettings.dayStart, localSettings.dayEnd]);

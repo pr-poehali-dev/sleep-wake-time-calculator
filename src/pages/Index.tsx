@@ -50,6 +50,7 @@ const TABS: { id: Tab; label: string; icon: string; emoji: string }[] = [
 
 export default function Index() {
   const [activeTab, setActiveTab] = useState<Tab>("calc");
+  const [loadedCycles, setLoadedCycles] = useState<SleepCycle[] | null>(null);
   const [settings, setSettings] = useState<Settings>(() => {
     try {
       const stored = localStorage.getItem("sleep-settings");
@@ -97,11 +98,13 @@ export default function Index() {
   const handleLoadHistory = (entry: HistoryEntry) => {
     setSettings((s) => ({
       ...s,
+      babyName: entry.babyName || s.babyName,
       sleepDuration: entry.sleepDuration,
       wakeDuration: entry.wakeDuration,
       dayStart: entry.dayStart,
       dayEnd: entry.dayEnd,
     }));
+    setLoadedCycles(entry.cycles);
     setActiveTab("calc");
   };
 
@@ -154,7 +157,12 @@ export default function Index() {
         {/* Content */}
         <main>
           {activeTab === "calc" && (
-            <SleepCalculator settings={settings} onSave={handleSave} />
+            <SleepCalculator
+            settings={settings}
+            onSave={handleSave}
+            initialCycles={loadedCycles}
+            onInitialCyclesConsumed={() => setLoadedCycles(null)}
+          />
           )}
           {activeTab === "settings" && (
             <SettingsPanel settings={settings} onChange={setSettings} />
